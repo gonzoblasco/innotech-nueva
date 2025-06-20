@@ -5,6 +5,24 @@ import { getCategoryStyles } from '../lib/categories'
 export default function AgentCard({ agent, onClick, locked = false }) {
   const categoryStyles = getCategoryStyles(agent.category || 'Sin Categoría')
 
+  // Mapear gradientes estáticos para Tailwind
+  const getGradientClass = (category) => {
+    switch (category) {
+      case 'Marketing':
+        return 'bg-gradient-to-r from-blue-500 to-blue-700'
+      case 'Productividad':
+        return 'bg-gradient-to-r from-green-500 to-green-700'
+      case 'Finanzas':
+        return 'bg-gradient-to-r from-purple-500 to-purple-700'
+      case 'Ventas':
+        return 'bg-gradient-to-r from-red-500 to-red-700'
+      case 'Legal':
+        return 'bg-gradient-to-r from-indigo-500 to-indigo-700'
+      default:
+        return 'bg-gradient-to-r from-gray-500 to-gray-700'
+    }
+  }
+
   return (
     <div
       onClick={!locked ? onClick : undefined}
@@ -25,9 +43,9 @@ export default function AgentCard({ agent, onClick, locked = false }) {
         </div>
       )}
 
-      {/* Header con gradiente de categoría */}
+      {/* Header con gradiente estático */}
       <div
-        className={`bg-gradient-to-r ${categoryStyles.gradient} p-6 text-white relative overflow-hidden`}
+        className={`${getGradientClass(agent.category)} p-6 text-white relative overflow-hidden`}
       >
         {/* Efecto de hover */}
         <div
@@ -86,17 +104,6 @@ export default function AgentCard({ agent, onClick, locked = false }) {
           </div>
         </div>
       </div>
-
-      {/* Borde de hover */}
-      <div
-        className={`absolute inset-0 rounded-xl border-2 transition-all duration-300 pointer-events-none ${
-          !locked ? 'group-hover:border-opacity-50 group-hover:shadow-lg' : 'border-transparent'
-        }`}
-        style={{
-          borderColor: !locked ? categoryStyles.color : 'transparent',
-          boxShadow: !locked ? `0 10px 25px -5px ${categoryStyles.color}20` : 'none',
-        }}
-      ></div>
     </div>
   )
 }

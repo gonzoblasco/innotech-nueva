@@ -12,7 +12,7 @@ export async function upsertUser(clerkUser) {
   try {
     console.log('👤 Upserting user:', clerkUser.id)
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('users')
       .upsert(
         {
@@ -42,7 +42,7 @@ export async function upsertUser(clerkUser) {
 
 export async function getUserById(userId) {
   try {
-    const { error } = await supabase.from('users').select('*').eq('id', userId).single()
+    const { data, error } = await supabase.from('users').select('*').eq('id', userId).single()
 
     if (error && error.code !== 'PGRST116') {
       console.error('❌ Error getting user:', error)
@@ -110,7 +110,7 @@ export async function getConversationMessages(conversationId) {
   try {
     console.log('📨 Getting messages for conversation:', conversationId)
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', conversationId)
@@ -133,7 +133,7 @@ export async function saveMessage(conversationId, role, content, metadata = null
   try {
     console.log('💾 Saving message:', { conversationId, role, contentLength: content?.length })
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .insert({
         conversation_id: conversationId,
@@ -202,7 +202,7 @@ export async function incrementUserMessageCount(userId) {
     }
 
     // Incrementar contador
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('users')
       .update({
         messages_used: limitCheck.used + 1,
@@ -237,7 +237,7 @@ export async function getActiveAgents() {
   try {
     console.log('🤖 Getting active agents from Supabase...')
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('agents')
       .select('*')
       .eq('is_active', true)
@@ -259,7 +259,7 @@ export async function getActiveAgents() {
 
 export async function getAgentById(agentId) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('agents')
       .select('*')
       .eq('id', agentId)
@@ -282,7 +282,7 @@ export async function getAgentById(agentId) {
 
 export async function getUserConversations(userId, limit = 10) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('conversations')
       .select(
         `

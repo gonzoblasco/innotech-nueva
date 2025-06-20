@@ -1,0 +1,176 @@
+// app/api/chat/route.js - VERSION CON PERSISTENCIA
+// import { NextResponse } from 'next/server'
+// import { currentUser } from '@clerk/nextjs/server'
+// import { aiService } from '../../lib/ai-service'
+// import { getAgentPrompt } from '../../lib/agent-prompts'
+// // import {
+//   upsertUser,
+//   getOrCreateConversation,
+//   saveMessage,
+//   checkUserMessageLimit,
+//   incrementUserMessageCount,
+//   getAgentById
+// } from '../../lib/supabase' // Comentado temporalmente
+
+export async function POST(request) {
+  try {
+    const { messages, agentId, conversationId } = await request.json()
+
+    // Validaciones básicas
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
+    }
+
+    if (messages.length === 0) {
+      return NextResponse.json({ error: 'At least one message is required' }, { status: 400 })
+    }
+
+    console.log(`💬 API Chat request for agent: ${agentId}`)
+    console.log(`📨 Messages count: ${messages.length}`)
+
+    // Obtener usuario autenticado
+    const user = await currentUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    console.log(`👤 User authenticated: ${user.id}`)
+
+    // 1. Upsert user en nuestra base de datos
+    await upsertUser(user)
+
+    // 2. Verificar límites de mensajes
+    const limitCheck = await checkUserMessageLimit(user.id)
+
+    if (!limitCheck.canSend) {
+      return NextResponse.json(
+        {
+          error: 'Message limit reached',
+          message: `Has alcanzado tu límite de ${limitCheck.limit} mensajes mensuales. Upgradea tu plan para continuar.`,
+          limit: limitCheck.limit,
+          used: limitCheck.used,
+        },
+        { status: 429 }
+      )
+    }
+
+    console.log(`📊 Message limit check: ${limitCheck.used}/${limitCheck.limit}`)
+
+    // 3. Obtener o crear conversación
+    let conversation
+    if (conversationId) {
+      // TODO: Validar que la conversación pertenece al usuario
+      conversation = { id: conversationId }
+    } else {
+      conversation = await getOrCreateConversation(user.id, agentId)
+
+      if (!conversation) {
+        throw new Error('No se pudo crear la conversación')
+      }
+    }
+
+    console.log(`💬 Using conversation: ${conversation.id}`)
+
+    // 4. Obtener system prompt para el agente
+    const systemPrompt = getAgentPrompt(agentId || 'marketing-digital')
+
+    // 5. Obtener último mensaje del usuario
+    const lastUserMessage = messages[messages.length - 1]
+
+    if (!lastUserMessage || lastUserMessage.role !== 'user') {
+      return NextResponse.json({ error: 'Last message must be from user' }, { status: 400 })
+    }
+
+    // 6. Guardar mensaje del usuario
+    const savedUserMessage = await saveMessage(conversation.id, 'user', lastUserMessage.content)
+
+    if (!savedUserMessage) {
+      console.warn('⚠️ Failed to save user message, continuing anyway')
+    }
+
+    // 7. Llamar al servicio de IA
+    const aiResponse = await aiService.sendMessage(
+      messages,
+      systemPrompt,
+      2000 // maxTokens
+    )
+
+    // 8. Guardar respuesta del agente
+    const savedAiMessage = await saveMessage(conversation.id, 'assistant', aiResponse.content, {
+      usage: aiResponse.usage,
+      mock: aiResponse.mock,
+      model: aiResponse.model || 'claude-sonnet-4',
+    })
+
+    if (!savedAiMessage) {
+      console.warn('⚠️ Failed to save AI message, continuing anyway')
+    }
+
+    // 9. Incrementar contador de mensajes del usuario
+    const usageUpdate = await incrementUserMessageCount(user.id)
+
+    console.log(`📊 Updated usage: ${usageUpdate.used}/${usageUpdate.limit}`)
+
+    // Log para debugging
+    if (aiResponse.mock) {
+      console.log('🎭 Using mock response (no API key)')
+    } else if (aiResponse.error) {
+      console.log('❌ AI API error, returned fallback')
+    } else {
+      console.log('✅ Real AI response generated')
+      console.log(`📊 Tokens used:`, aiResponse.usage)
+    }
+
+    // Formatear respuesta con indicadores
+    let messageContent = aiResponse.content
+    if (aiResponse.mock) {
+      messageContent = `🎭 **[Modo Demo - Sin API Key]**\n\n${messageContent}`
+    }
+
+    return NextResponse.json({
+      message: messageContent,
+      conversationId: conversation.id,
+      usage: aiResponse.usage || null,
+      mock: aiResponse.mock || false,
+      error: aiResponse.error || false,
+      userUsage: {
+        used: usageUpdate.used,
+        limit: usageUpdate.limit,
+        remaining: usageUpdate.remaining,
+        plan: usageUpdate.plan,
+      },
+    })
+  } catch (error) {
+    console.error('💥 API Error:', error)
+
+    // Diferentes tipos de errores
+    if (error.message.includes('limit')) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded',
+          message: 'Has alcanzado tu límite de mensajes. Intentá más tarde.',
+        },
+        { status: 429 }
+      )
+    }
+
+    if (error.message.includes('authentication')) {
+      return NextResponse.json(
+        {
+          error: 'Authentication failed',
+          message: 'Tu sesión expiró. Por favor iniciá sesión nuevamente.',
+        },
+        { status: 401 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        message: 'Disculpá, hubo un error técnico. Por favor intentá nuevamente.',
+      },
+      { status: 500 }
+    )
+  }
+}

@@ -1,0 +1,229 @@
+// __tests__/integration/chat-flow.test.js - TESTS DE INTEGRACIÓN
+import React from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useRouter } from 'next/navigation'
+import AgentGrid from '@/components/AgentGrid'
+import ChatInterface from '@/components/ChatInterface'
+
+// Mock router
+jest.mock('next/navigation')
+
+describe('Chat Flow Integration', () => {
+  const mockPush = jest.fn()
+
+  beforeEach(() => {
+    useRouter.mockReturnValue({
+      push: mockPush,
+      replace: jest.fn(),
+      back: jest.fn(),
+    })
+    jest.clearAllMocks()
+  })
+
+  describe('Complete User Journey', () => {
+    it('allows user to select agent and start chat', async () => {
+      const user = userEvent.setup()
+
+      // 1. Render agent grid
+      render(<AgentGrid />)
+
+      // 2. Wait for agents to load
+      await waitFor(() => {
+        expect(screen.getByText('Consultor de Marketing Digital')).toBeInTheDocument()
+      })
+
+      // 3. Click on an agent
+      const marketingCard =
+        screen
+          .getByText('Consultor de Marketing Digital')
+          .closest('div[role="button"], div[onClick]') || screen.getByText('Chatear').closest('div')
+
+      await user.click(marketingCard)
+
+      // 4. Verify navigation was called
+      expect(mockPush).toHaveBeenCalledWith('/chat/marketing-digital')
+    })
+
+    it('handles full chat conversation flow', async () => {
+      const user = userEvent.setup()
+      const mockAgent = {
+        id: 'marketing-digital',
+        name: 'Consultor de Marketing Digital',
+        title: 'Especialista en PyMEs argentinas',
+        emoji: '🎯',
+        welcome_message: '¡Hola! Soy tu consultor de Marketing Digital.',
+      }
+
+      // 1. Render chat interface
+      render(<ChatInterface agent={mockAgent} />)
+
+      // 2. Wait for welcome message
+      await waitFor(() => {
+        expect(screen.getByText(/consultor de Marketing Digital/)).toBeInTheDocument()
+      })
+
+      // 3. Type and send first message
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+      await user.type(textarea, 'Necesito ayuda con mi estrategia de marketing')
+      await user.keyboard('{Enter}')
+
+      // 4. Verify user message appears
+      expect(screen.getByText('Necesito ayuda con mi estrategia de marketing')).toBeInTheDocument()
+
+      // 5. Wait for AI response
+      await waitFor(
+        () => {
+          expect(screen.getByText(/Mock response/)).toBeInTheDocument()
+        },
+        { timeout: 5000 }
+      )
+
+      // 6. Send follow-up message
+      await user.type(textarea, 'Gracias por la información')
+      await user.keyboard('{Enter}')
+
+      // 7. Verify message counter updates
+      await waitFor(() => {
+        expect(screen.getByText(/3 mensajes/)).toBeInTheDocument()
+      })
+    })
+
+    it('handles error scenarios gracefully', async () => {
+      const user = userEvent.setup()
+
+      // Mock network error
+      fetch.mockRejectedValueOnce(new Error('Network error'))
+
+      const mockAgent = global.testUtils.mockAgent
+      render(<ChatInterface agent={mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+      await user.type(textarea, 'Test message')
+      await user.keyboard('{Enter}')
+
+      // Should show error message
+      await waitFor(() => {
+        expect(screen.getByText(/Error técnico/)).toBeInTheDocument()
+      })
+
+      // User should be able to retry
+      await user.type(textarea, 'Retry message')
+      expect(textarea).toHaveValue('Retry message')
+    })
+  })
+
+  describe('Multi-Agent Interaction', () => {
+    it('can switch between different agents', async () => {
+      const user = userEvent.setup()
+
+      // Start with marketing agent
+      const marketingAgent = {
+        id: 'marketing-digital',
+        name: 'Consultor de Marketing Digital',
+        emoji: '🎯',
+        welcome_message: 'Hola desde Marketing!',
+      }
+
+      const { rerender } = render(<ChatInterface agent={marketingAgent} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Hola desde Marketing!')).toBeInTheDocument()
+      })
+
+      // Switch to productivity agent
+      const productivityAgent = {
+        id: 'mentor-productividad',
+        name: 'Mentor de Productividad',
+        emoji: '⚡',
+        welcome_message: 'Hola desde Productividad!',
+      }
+
+      rerender(<ChatInterface agent={productivityAgent} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Hola desde Productividad!')).toBeInTheDocument()
+      })
+
+      // Previous agent's messages should be cleared
+      expect(screen.queryByText('Hola desde Marketing!')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Authentication Flow Integration', () => {
+    it('redirects unauthenticated users to sign in', async () => {
+      // Mock unauthenticated user
+      const { useUser } = require('@clerk/nextjs')
+      useUser.mockReturnValue({
+        isSignedIn: false,
+        user: null,
+        isLoaded: true,
+      })
+
+      const user = userEvent.setup()
+      render(<AgentGrid />)
+
+      // Click on agent when not signed in
+      const marketingCard = await screen.findByText('Crear Cuenta Gratis')
+      await user.click(marketingCard)
+
+      // Should navigate to sign-in
+      expect(mockPush).toHaveBeenCalledWith('/sign-in')
+    })
+
+    it('allows authenticated users to access chat', async () => {
+      // Mock authenticated user
+      const { useUser } = require('@clerk/nextjs')
+      useUser.mockReturnValue({
+        isSignedIn: true,
+        user: global.testUtils.mockUser,
+        isLoaded: true,
+      })
+
+      const user = userEvent.setup()
+      render(<AgentGrid />)
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(`¡Hola ${global.testUtils.mockUser.firstName}!`)
+        ).toBeInTheDocument()
+      })
+
+      // Should show agent cards as unlocked
+      expect(screen.queryByText('Login')).not.toBeInTheDocument()
+      expect(screen.getAllByText('Chatear')).toHaveLength(5) // 5 agents
+    })
+  })
+
+  describe('Responsive Behavior Integration', () => {
+    it('adapts to mobile viewport', () => {
+      // Mock mobile viewport
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 375,
+      })
+
+      render(<AgentGrid />)
+
+      // Should show mobile-optimized layout
+      const grid = screen.getByRole('main') || document.querySelector('.grid')
+      expect(grid).toHaveClass(/grid-cols-1/)
+    })
+
+    it('adapts to desktop viewport', () => {
+      // Mock desktop viewport
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 1024,
+      })
+
+      render(<AgentGrid />)
+
+      // Should show desktop layout
+      const grid = screen.getByRole('main') || document.querySelector('.grid')
+      expect(grid).toHaveClass(/lg:grid-cols-3/)
+    })
+  })
+})

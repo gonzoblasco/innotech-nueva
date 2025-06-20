@@ -1,8 +1,5 @@
-import { Inter } from 'next/font/google'
-import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
+import { ClerkProvider } from '@clerk/nextjs'
 
 export const metadata = {
   title: 'InnoTech Solutions - Netflix de Agentes Conversacionales',
@@ -10,7 +7,7 @@ export const metadata = {
     'La primera plataforma que permite acceder a un catálogo de agentes de IA especializados para emprendedores y PyMEs latinos.',
 }
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
       appearance={{
@@ -31,7 +28,6 @@ export default function RootLayout({ children }) {
     >
       <html lang="es-AR">
         <head>
-          {/* Font Awesome CDN */}
           <link
             rel="stylesheet"
             href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -39,14 +35,12 @@ export default function RootLayout({ children }) {
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
           />
-
-          {/* Favicon */}
           <link
             rel="icon"
             href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
           />
         </head>
-        <body className={inter.className}>{children}</body>
+        <body>{children}</body>
       </html>
     </ClerkProvider>
   )

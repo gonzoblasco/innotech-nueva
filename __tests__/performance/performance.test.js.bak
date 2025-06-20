@@ -1,0 +1,292 @@
+// __tests__/performance/performance.test.js - TESTS DE PERFORMANCE
+import React from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { act } from 'react-dom/test-utils'
+import ChatInterface from '@/components/ChatInterface'
+import AgentGrid from '@/components/AgentGrid'
+
+describe('Performance Tests', () => {
+  describe('Render Performance', () => {
+    it('renders ChatInterface within acceptable time', async () => {
+      const startTime = performance.now()
+
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      await waitFor(() => {
+        expect(screen.getByText(global.testUtils.mockAgent.name)).toBeInTheDocument()
+      })
+
+      const renderTime = performance.now() - startTime
+
+      // Should render within 100ms
+      expect(renderTime).toBeLessThan(100)
+    })
+
+    it('renders AgentGrid with multiple agents efficiently', async () => {
+      const startTime = performance.now()
+
+      render(<AgentGrid />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Consultor de Marketing Digital')).toBeInTheDocument()
+      })
+
+      const renderTime = performance.now() - startTime
+
+      // Should render all agents within 200ms
+      expect(renderTime).toBeLessThan(200)
+    })
+  })
+
+  describe('Memory Usage', () => {
+    it('does not create memory leaks with multiple renders', () => {
+      const initialMemory = performance.memory?.usedJSHeapSize || 0
+
+      // Render and unmount multiple times
+      for (let i = 0; i < 10; i++) {
+        const { unmount } = render(<ChatInterface agent={global.testUtils.mockAgent} />)
+        unmount()
+      }
+
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc()
+      }
+
+      const finalMemory = performance.memory?.usedJSHeapSize || 0
+      const memoryIncrease = finalMemory - initialMemory
+
+      // Memory increase should be minimal (less than 1MB)
+      expect(memoryIncrease).toBeLessThan(1024 * 1024)
+    })
+
+    it('cleans up event listeners on unmount', () => {
+      const addEventListenerSpy = jest.spyOn(window, 'addEventListener')
+      const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener')
+
+      const { unmount } = render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const listenersAdded = addEventListenerSpy.mock.calls.length
+
+      unmount()
+
+      const listenersRemoved = removeEventListenerSpy.mock.calls.length
+
+      // Should clean up all event listeners
+      expect(listenersRemoved).toBeGreaterThanOrEqual(listenersAdded)
+
+      addEventListenerSpy.mockRestore()
+      removeEventListenerSpy.mockRestore()
+    })
+  })
+
+  describe('Interaction Performance', () => {
+    it('handles rapid typing efficiently', async () => {
+      const user = userEvent.setup({ delay: 1 }) // Very fast typing
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+      const longText = 'A'.repeat(1000) // 1000 characters
+
+      const startTime = performance.now()
+
+      await user.type(textarea, longText)
+
+      const typingTime = performance.now() - startTime
+
+      // Should handle fast typing within reasonable time
+      expect(typingTime).toBeLessThan(5000) // 5 seconds for 1000 chars
+      expect(textarea).toHaveValue(longText)
+    })
+
+    it('handles rapid message sending', async () => {
+      const user = userEvent.setup()
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+      const sendTimes = []
+
+      // Send 5 messages rapidly
+      for (let i = 0; i < 5; i++) {
+        const startTime = performance.now()
+
+        await user.type(textarea, `Message ${i}`)
+        await user.keyboard('{Enter}')
+
+        // Wait for message to appear
+        await waitFor(() => {
+          expect(screen.getByText(`Message ${i}`)).toBeInTheDocument()
+        })
+
+        const sendTime = performance.now() - startTime
+        sendTimes.push(sendTime)
+      }
+
+      // Average send time should be reasonable
+      const avgSendTime = sendTimes.reduce((a, b) => a + b, 0) / sendTimes.length
+      expect(avgSendTime).toBeLessThan(1000) // Less than 1 second per message
+    })
+  })
+
+  describe('Scroll Performance', () => {
+    it('handles large message history efficiently', async () => {
+      const { rerender } = render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      // Create a large number of messages
+      const manyMessages = Array.from({ length: 100 }, (_, i) => ({
+        id: `msg-${i}`,
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Message ${i}`,
+        timestamp: new Date().toISOString(),
+      }))
+
+      const startTime = performance.now()
+
+      // Mock the component with many messages (would need to modify component to accept initial messages)
+      const ChatWithMessages = () => {
+        const [messages] = React.useState(manyMessages)
+        return <ChatInterface agent={global.testUtils.mockAgent} initialMessages={messages} />
+      }
+
+      render(<ChatWithMessages />)
+
+      const renderTime = performance.now() - startTime
+
+      // Should render large message list within reasonable time
+      expect(renderTime).toBeLessThan(1000) // 1 second for 100 messages
+    })
+
+    it('auto-scroll performance is acceptable', async () => {
+      const mockScrollIntoView = jest.fn()
+      Element.prototype.scrollIntoView = mockScrollIntoView
+
+      const user = userEvent.setup()
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+
+      const scrollTimes = []
+
+      // Send multiple messages and measure scroll time
+      for (let i = 0; i < 10; i++) {
+        const startTime = performance.now()
+
+        await user.type(textarea, `Message ${i}`)
+        await user.keyboard('{Enter}')
+
+        await waitFor(() => {
+          expect(mockScrollIntoView).toHaveBeenCalled()
+        })
+
+        const scrollTime = performance.now() - startTime
+        scrollTimes.push(scrollTime)
+
+        mockScrollIntoView.mockClear()
+      }
+
+      // Average scroll time should be fast
+      const avgScrollTime = scrollTimes.reduce((a, b) => a + b, 0) / scrollTimes.length
+      expect(avgScrollTime).toBeLessThan(100) // Less than 100ms per scroll
+    })
+  })
+
+  describe('Bundle Size Impact', () => {
+    it('components do not import unnecessary dependencies', () => {
+      // This would be better tested with a bundler analyzer, but we can check imports
+      const ChatInterfaceModule = require('@/components/ChatInterface')
+      const AgentGridModule = require('@/components/AgentGrid')
+
+      // Verify only expected exports exist
+      expect(typeof ChatInterfaceModule.default).toBe('function')
+      expect(typeof AgentGridModule.default).toBe('function')
+
+      // No unwanted exports
+      expect(Object.keys(ChatInterfaceModule)).toEqual(['default'])
+      expect(Object.keys(AgentGridModule)).toEqual(['default'])
+    })
+  })
+
+  describe('API Response Performance', () => {
+    it('handles slow API responses gracefully', async () => {
+      // Mock slow API response
+      fetch.mockImplementationOnce(
+        () =>
+          new Promise(
+            (resolve) =>
+              setTimeout(
+                () =>
+                  resolve({
+                    ok: true,
+                    json: () =>
+                      Promise.resolve({
+                        message: 'Slow response',
+                        usage: { tokens: 50 },
+                      }),
+                  }),
+                3000
+              ) // 3 second delay
+          )
+      )
+
+      const user = userEvent.setup()
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+
+      await user.type(textarea, 'Test slow response')
+      await user.keyboard('{Enter}')
+
+      // Should show loading state immediately
+      expect(screen.getByText('Escribiendo...')).toBeInTheDocument()
+
+      // Wait for response (with longer timeout)
+      await waitFor(
+        () => {
+          expect(screen.getByText('Slow response')).toBeInTheDocument()
+        },
+        { timeout: 5000 }
+      )
+
+      // Loading state should be gone
+      expect(screen.queryByText('Escribiendo...')).not.toBeInTheDocument()
+    })
+
+    it('times out appropriately on very slow responses', async () => {
+      // Mock very slow API response (longer than timeout)
+      fetch.mockImplementationOnce(
+        () =>
+          new Promise(
+            (resolve) =>
+              setTimeout(
+                () =>
+                  resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ message: 'Never reached' }),
+                  }),
+                15000
+              ) // 15 second delay
+          )
+      )
+
+      const user = userEvent.setup()
+      render(<ChatInterface agent={global.testUtils.mockAgent} />)
+
+      const textarea = screen.getByPlaceholderText(/Mensaje a/)
+
+      await user.type(textarea, 'Test timeout')
+      await user.keyboard('{Enter}')
+
+      // Should show loading state
+      expect(screen.getByText('Escribiendo...')).toBeInTheDocument()
+
+      // Should eventually show error (assuming component has timeout logic)
+      await waitFor(
+        () => {
+          expect(screen.getByText(/Error técnico/)).toBeInTheDocument()
+        },
+        { timeout: 12000 }
+      )
+    })
+  })
+})

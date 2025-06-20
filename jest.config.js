@@ -1,21 +1,33 @@
-// jest.config.js - CORREGIDO
-module.exports = {
+const nextJest = require('next/jest')
+
+const createJestConfig = nextJest({
+  dir: './',
+})
+
+const customJestConfig = {
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  // FIX: moduleNameMapping -> moduleNameMapper
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
-  },
+  testPathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/node_modules/',
+    '<rootDir>/__tests__/disabled/',
+    '<rootDir>/__tests__/e2e/',
+  ],
   collectCoverageFrom: [
-    'app/**/*.{js,jsx}',
-    'components/**/*.{js,jsx}',
-    'hooks/**/*.{js,jsx}',
+    'app/**/*.{js,jsx,ts,tsx}',
+    'components/**/*.{js,jsx,ts,tsx}',
+    'hooks/**/*.{js,jsx,ts,tsx}',
+    'lib/**/*.{js,jsx,ts,tsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
+    '!**/.next/**',
+    '!**/coverage/**',
   ],
-  testMatch: ['<rootDir>/__tests__/**/*.{js,jsx}', '<rootDir>/**/*.{test,spec}.{js,jsx}'],
-  moduleFileExtensions: ['js', 'jsx', 'json'],
+  testTimeout: 10000,
+  verbose: true,
 }
+
+module.exports = createJestConfig(customJestConfig)

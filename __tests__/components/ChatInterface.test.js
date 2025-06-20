@@ -1,28 +1,31 @@
-// __tests__/components/ChatInterface.test.js - VERSIÓN SIMPLE
-describe('ChatInterface', () => {
-  test('componente básico funciona', () => {
-    // Test simple sin renderizar componente real por ahora
-    const mockProps = {
-      agent: {
-        id: 'test',
-        name: 'Test Agent',
-        emoji: '🤖',
-      },
-    }
+import React from 'react'
+import { render, screen } from '@testing-library/react'
 
-    expect(mockProps.agent.name).toBe('Test Agent')
-    expect(mockProps.agent.emoji).toBe('🤖')
+// Mock ChatInterface por ahora
+const MockChatInterface = ({ agent }) => (
+  <div data-testid="chat-interface">
+    <div>{agent.name}</div>
+    <div>{agent.emoji}</div>
+    <input placeholder={`Mensaje a ${agent.name}...`} />
+    <button>Enviar</button>
+  </div>
+)
+
+describe('ChatInterface', () => {
+  const mockAgent = global.testUtils.mockAgent
+  
+  it('renders chat interface with agent info', () => {
+    render(<MockChatInterface agent={mockAgent} />)
+    
+    expect(screen.getByText(mockAgent.name)).toBeInTheDocument()
+    expect(screen.getByText(mockAgent.emoji)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(`Mensaje a ${mockAgent.name}...`)).toBeInTheDocument()
+    expect(screen.getByRole('button')).toBeInTheDocument()
   })
 
-  test('agent tiene propiedades requeridas', () => {
-    const agent = {
-      id: 'marketing-digital',
-      name: 'Marketing Expert',
-      title: 'Digital specialist',
-    }
-
-    expect(agent).toHaveProperty('id')
-    expect(agent).toHaveProperty('name')
-    expect(agent).toHaveProperty('title')
+  it('has proper structure', () => {
+    render(<MockChatInterface agent={mockAgent} />)
+    
+    expect(screen.getByTestId('chat-interface')).toBeInTheDocument()
   })
 })

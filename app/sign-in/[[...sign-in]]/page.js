@@ -1,16 +1,15 @@
 import { SignIn } from '@clerk/nextjs'
+import Link from 'next/link'
 
 export default function Page() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">🚀 InnoTech Solutions</h1>
           <p className="text-gray-600">Iniciá sesión para acceder a tus agentes especializados</p>
         </div>
 
-        {/* Clerk Sign In Component */}
         <SignIn
           appearance={{
             elements: {
@@ -32,13 +31,12 @@ export default function Page() {
           signUpUrl="/sign-up"
         />
 
-        {/* Footer */}
         <div className="text-center mt-6">
           <p className="text-sm text-gray-500">
             ¿No tenés cuenta?{' '}
-            <a href="/sign-up" className="text-blue-600 hover:text-blue-700 font-medium">
+            <Link href="/sign-up" className="text-blue-600 hover:text-blue-700 font-medium">
               Registrate gratis
-            </a>
+            </Link>
           </p>
         </div>
       </div>

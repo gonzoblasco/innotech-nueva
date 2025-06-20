@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useUser, SignInButton, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AgentCard from './AgentCard'
-// import { getActiveAgents } from '../lib/supabase' // Comentado temporalmente
+import { getActiveAgents } from '../lib/supabase'
 
-// Mock agents data (versión completa hasta que Supabase esté configurado)
+// Mock agents data (luego conectaremos con Supabase)
 const MOCK_AGENTS = [
   {
     id: 'marketing-digital',
@@ -62,7 +62,7 @@ export default function AgentGrid() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Simular carga de datos (sin Supabase por ahora)
+    // Simular carga de datos
     loadAgents()
   }, [])
 
@@ -70,24 +70,19 @@ export default function AgentGrid() {
     try {
       setLoading(true)
 
-      console.log('🔄 Loading agents (using mock data)...')
+      console.log('🔄 Loading agents from Supabase...')
 
-      // Simular delay de red
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Intentar cargar desde Supabase
+      const agentsData = await getActiveAgents()
 
-      // TODO: Descomentar cuando Supabase esté configurado
-      // const agentsData = await getActiveAgents()
-      // if (agentsData && agentsData.length > 0) {
-      //   console.log(`✅ Loaded ${agentsData.length} agents from Supabase`)
-      //   setAgents(agentsData)
-      // } else {
-      //   console.log('⚠️ No agents found in Supabase, using fallback')
-      //   setAgents(MOCK_AGENTS)
-      // }
-
-      // Por ahora usar siempre mock data
-      console.log(`✅ Loaded ${MOCK_AGENTS.length} mock agents`)
-      setAgents(MOCK_AGENTS)
+      if (agentsData && agentsData.length > 0) {
+        console.log(`✅ Loaded ${agentsData.length} agents from Supabase`)
+        setAgents(agentsData)
+      } else {
+        console.log('⚠️ No agents found in Supabase, using fallback')
+        // Fallback a mock data si Supabase no tiene agentes
+        setAgents(MOCK_AGENTS)
+      }
     } catch (error) {
       console.error('💥 Error loading agents:', error)
       console.log('🔄 Using fallback agents...')

@@ -194,8 +194,8 @@ export default function ChatInterface({ agent }) {
                     message.role === 'user'
                       ? 'bg-blue-600 text-white ml-auto'
                       : message.isError
-                        ? 'bg-red-50 text-red-900 border border-red-200'
-                        : 'bg-gray-100 text-gray-900'
+                      ? 'bg-red-50 text-red-900 border border-red-200'
+                      : 'bg-gray-100 text-gray-900'
                   }`}
                 >
                   <FormattedMessage content={message.content} isUser={message.role === 'user'} />
