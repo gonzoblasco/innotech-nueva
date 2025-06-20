@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useUser, SignInButton, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AgentCard from './AgentCard'
+import { getActiveAgents } from '../lib/supabase'
 
 // Mock agents data (luego conectaremos con Supabase)
 const MOCK_AGENTS = [
@@ -62,11 +63,34 @@ export default function AgentGrid() {
 
   useEffect(() => {
     // Simular carga de datos
-    setTimeout(() => {
-      setAgents(MOCK_AGENTS)
-      setLoading(false)
-    }, 1000)
+    loadAgents()
   }, [])
+
+  const loadAgents = async () => {
+    try {
+      setLoading(true)
+
+      console.log('🔄 Loading agents from Supabase...')
+
+      // Intentar cargar desde Supabase
+      const agentsData = await getActiveAgents()
+
+      if (agentsData && agentsData.length > 0) {
+        console.log(`✅ Loaded ${agentsData.length} agents from Supabase`)
+        setAgents(agentsData)
+      } else {
+        console.log('⚠️ No agents found in Supabase, using fallback')
+        // Fallback a mock data si Supabase no tiene agentes
+        setAgents(MOCK_AGENTS)
+      }
+    } catch (error) {
+      console.error('💥 Error loading agents:', error)
+      console.log('🔄 Using fallback agents...')
+      setAgents(MOCK_AGENTS)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAgentClick = (agent) => {
     if (!isSignedIn) {

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
 import ChatInterface from '../../components/ChatInterface'
 
-// Mock agents data
+// Mock agents data (mismo que en AgentGrid.js para consistencia)
 const MOCK_AGENTS = {
   'marketing-digital': {
     id: 'marketing-digital',
@@ -54,26 +54,38 @@ export default function ChatPage() {
   const router = useRouter()
   const [agent, setAgent] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const agentId = params.agentId
 
-    // Simular carga de agente
-    setTimeout(() => {
-      const foundAgent = MOCK_AGENTS[agentId]
+    // Simular carga de agente (en el futuro será desde Supabase)
+    const loadAgent = async () => {
+      try {
+        setLoading(true)
 
-      if (foundAgent) {
-        setAgent(foundAgent)
-      } else {
-        // Agente no encontrado, redirigir
-        router.push('/')
-        return
+        // Simular delay de carga
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        const foundAgent = MOCK_AGENTS[agentId]
+
+        if (foundAgent) {
+          setAgent(foundAgent)
+        } else {
+          setError('Agente no encontrado')
+        }
+      } catch (err) {
+        console.error('Error cargando agente:', err)
+        setError('Error cargando el agente')
+      } finally {
+        setLoading(false)
       }
+    }
 
-      setLoading(false)
-    }, 500)
-  }, [params.agentId, router])
+    loadAgent()
+  }, [params.agentId])
 
+  // Loading state
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -85,12 +97,20 @@ export default function ChatPage() {
     )
   }
 
-  if (!agent) {
+  // Error state
+  if (error || !agent) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Agente no encontrado</p>
-          <button onClick={() => router.push('/')} className="text-blue-600 hover:text-blue-700">
+          <div className="text-4xl mb-4">🤖</div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            {error || 'Agente no encontrado'}
+          </h2>
+          <p className="text-gray-500 mb-4">No pudimos cargar el agente solicitado</p>
+          <button
+            onClick={() => router.push('/')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
             ← Volver a la galería
           </button>
         </div>
@@ -106,12 +126,20 @@ export default function ChatPage() {
           <div className="flex items-center text-sm text-gray-500">
             <button
               onClick={() => router.push('/')}
-              className="hover:text-blue-600 transition-colors"
+              className="hover:text-blue-600 transition-colors flex items-center"
             >
-              🏠 Galería de Agentes
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Galería de Agentes
             </button>
             <span className="mx-2">•</span>
-            <span className="text-gray-700">{agent.name}</span>
+            <span className="text-gray-700 font-medium">{agent.name}</span>
           </div>
 
           {/* User button */}

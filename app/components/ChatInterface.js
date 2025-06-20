@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import FormattedMessage from './FormattedMessage'
 
 export default function ChatInterface({ agent }) {
@@ -8,40 +8,71 @@ export default function ChatInterface({ agent }) {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef(null)
+  const textareaRef = useRef(null)
+  const messagesContainerRef = useRef(null)
 
-  // Scroll automático al final
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  // Scroll automático al final con mejor UX
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end',
+      })
+    }
+  }, [])
+
+  // Auto-resize del textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      const newHeight = Math.min(textarea.scrollHeight, 120) // Max 120px
+      textarea.style.height = `${newHeight}px`
+    }
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
+
+  useEffect(() => {
+    adjustTextareaHeight()
+  }, [inputMessage, adjustTextareaHeight])
 
   // Mensaje de bienvenida inicial
   useEffect(() => {
-    if (agent?.welcome_message) {
+    if (agent?.welcome_message && messages.length === 0) {
       setMessages([
         {
+          id: 'welcome',
           role: 'assistant',
           content: agent.welcome_message,
+          timestamp: new Date().toISOString(),
         },
       ])
     }
-  }, [agent])
+  }, [agent, messages.length])
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
 
-    const userMessage = { role: 'user', content: inputMessage }
-    const updatedMessages = [...messages, userMessage]
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: inputMessage.trim(),
+      timestamp: new Date().toISOString(),
+    }
 
+    const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputMessage('')
     setIsLoading(true)
 
+    // Scroll inmediato para el mensaje del usuario
+    setTimeout(scrollToBottom, 50)
+
     try {
-      console.log('📤 Sending message to API...')
+      console.log('📤 Enviando mensaje a la API...')
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -49,13 +80,16 @@ export default function ChatInterface({ agent }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: updatedMessages,
+          messages: updatedMessages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
           agentId: agent?.id || 'marketing-digital',
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
@@ -64,26 +98,33 @@ export default function ChatInterface({ agent }) {
         throw new Error(data.message || 'Error en la respuesta del servidor')
       }
 
-      console.log('📥 API response received')
+      console.log('📥 Respuesta recibida de la API')
 
-      // Mostrar indicador si es respuesta mock o real
+      // Formatear respuesta con indicadores
       let messageContent = data.message
       if (data.mock) {
         messageContent = `🎭 **[Modo Demo - Sin API Key]**\n\n${messageContent}`
       }
 
       const aiResponse = {
+        id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: messageContent,
+        timestamp: new Date().toISOString(),
+        usage: data.usage || null,
+        mock: data.mock || false,
       }
 
       setMessages([...updatedMessages, aiResponse])
     } catch (error) {
-      console.error('❌ Error:', error)
+      console.error('❌ Error en el chat:', error)
 
       const errorMessage = {
+        id: `error-${Date.now()}`,
         role: 'assistant',
         content: `❌ **Error técnico**\n\n${error.message}\n\n¿Podés intentar nuevamente en unos momentos?`,
+        timestamp: new Date().toISOString(),
+        isError: true,
       }
 
       setMessages([...updatedMessages, errorMessage])
@@ -99,28 +140,48 @@ export default function ChatInterface({ agent }) {
     }
   }
 
+  const handleInputChange = (e) => {
+    setInputMessage(e.target.value)
+  }
+
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header del chat */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex items-center space-x-3">
-          <div className="text-2xl">{agent?.emoji || '🤖'}</div>
-          <div>
-            <h1 className="font-semibold text-gray-900">{agent?.name || 'Agente Especializado'}</h1>
-            <p className="text-sm text-gray-500">{agent?.title || 'Listo para ayudarte'}</p>
+      {/* Header del chat mejorado */}
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <div className="text-3xl">{agent?.emoji || '🤖'}</div>
+              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 border-2 border-white rounded-full"></div>
+            </div>
+            <div>
+              <h1 className="font-semibold text-gray-900">
+                {agent?.name || 'Agente Especializado'}
+              </h1>
+              <p className="text-sm text-gray-500">{agent?.title || 'Listo para ayudarte'}</p>
+            </div>
+          </div>
+
+          {/* Contador de mensajes */}
+          <div className="text-xs text-gray-400">
+            {messages.length > 1 && `${messages.length - 1} mensajes`}
           </div>
         </div>
       </div>
 
-      {/* Área de mensajes */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      {/* Área de mensajes mejorada */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-6 scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         <div className="max-w-4xl mx-auto space-y-6">
-          {messages.map((message, index) => (
+          {messages.map((message) => (
             <div
-              key={index}
+              key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className="flex max-w-[80%] space-x-3">
+              <div className="flex max-w-[85%] space-x-3">
                 {message.role === 'assistant' && (
                   <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                     {agent?.emoji || '🤖'}
@@ -128,17 +189,33 @@ export default function ChatInterface({ agent }) {
                 )}
 
                 <div
-                  className={`rounded-2xl px-4 py-3 ${
+                  className={`rounded-2xl px-4 py-3 shadow-sm ${
                     message.role === 'user'
                       ? 'bg-blue-600 text-white ml-auto'
+                      : message.isError
+                      ? 'bg-red-50 text-red-900 border border-red-200'
                       : 'bg-gray-100 text-gray-900'
                   }`}
                 >
                   <FormattedMessage content={message.content} isUser={message.role === 'user'} />
+
+                  {/* Timestamp sutil */}
+                  {message.timestamp && (
+                    <div
+                      className={`text-xs mt-2 opacity-70 ${
+                        message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                      }`}
+                    >
+                      {new Date(message.timestamp).toLocaleTimeString('es-AR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {message.role === 'user' && (
-                  <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
                     U
                   </div>
                 )}
@@ -146,6 +223,7 @@ export default function ChatInterface({ agent }) {
             </div>
           ))}
 
+          {/* Indicador de typing mejorado */}
           {isLoading && (
             <div className="flex justify-start">
               <div className="flex max-w-[80%] space-x-3">
@@ -153,16 +231,19 @@ export default function ChatInterface({ agent }) {
                   {agent?.emoji || '🤖'}
                 </div>
                 <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: '0.1s' }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: '0.2s' }}
-                    ></div>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '0.1s' }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '0.2s' }}
+                      ></div>
+                    </div>
+                    <span className="text-xs text-gray-500">Escribiendo...</span>
                   </div>
                 </div>
               </div>
@@ -173,17 +254,18 @@ export default function ChatInterface({ agent }) {
         </div>
       </div>
 
-      {/* Input area */}
+      {/* Input area mejorada */}
       <div className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-end space-x-3">
             <div className="flex-1 relative">
               <textarea
+                ref={textareaRef}
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
+                onChange={handleInputChange}
                 onKeyPress={handleKeyPress}
                 placeholder={`Mensaje a ${agent?.name || 'tu agente'}...`}
-                className="w-full resize-none border border-gray-300 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full resize-none border border-gray-300 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 rows={1}
                 style={{
                   minHeight: '44px',
@@ -191,14 +273,20 @@ export default function ChatInterface({ agent }) {
                 }}
                 disabled={isLoading}
               />
+
+              {/* Contador de caracteres */}
+              <div className="absolute bottom-1 right-3 text-xs text-gray-400">
+                {inputMessage.length > 0 && `${inputMessage.length}/2000`}
+              </div>
             </div>
+
             <button
               onClick={sendMessage}
               disabled={isLoading || !inputMessage.trim()}
-              className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors ${
+              className={`flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200 ${
                 isLoading || !inputMessage.trim()
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 active:scale-95'
               }`}
             >
               {isLoading ? (
@@ -215,8 +303,11 @@ export default function ChatInterface({ agent }) {
               )}
             </button>
           </div>
+
           <div className="mt-2 text-xs text-gray-500 text-center">
-            Presiona Enter para enviar • Shift+Enter para nueva línea
+            Presiona <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Enter</kbd> para
+            enviar •<kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Shift+Enter</kbd> para
+            nueva línea
           </div>
         </div>
       </div>

@@ -38,6 +38,13 @@ export async function POST(request) {
       console.log(`📊 Tokens used:`, aiResponse.usage)
     }
 
+    // TODO: Agregar persistencia en Sprint 2
+    // En el futuro aquí guardaremos:
+    // - await upsertUser(userId)
+    // - await getOrCreateConversation(userId, agentId)
+    // - await saveMessage(conversationId, userMessage)
+    // - await saveMessage(conversationId, aiResponse)
+
     return NextResponse.json({
       message: aiResponse.content,
       usage: aiResponse.usage || null,
