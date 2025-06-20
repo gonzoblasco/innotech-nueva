@@ -1,0 +1,58 @@
+import { NextResponse } from 'next/server'
+import { aiService } from '../../lib/ai-service'
+import { getAgentPrompt } from '../../lib/agent-prompts'
+
+export async function POST(request) {
+  try {
+    const { messages, agentId } = await request.json()
+
+    // Validaciones básicas
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
+    }
+
+    if (messages.length === 0) {
+      return NextResponse.json({ error: 'At least one message is required' }, { status: 400 })
+    }
+
+    console.log(`💬 API Chat request for agent: ${agentId}`)
+    console.log(`📨 Messages count: ${messages.length}`)
+
+    // Obtener system prompt para el agente
+    const systemPrompt = getAgentPrompt(agentId || 'marketing-digital')
+
+    // Llamar al servicio de IA
+    const aiResponse = await aiService.sendMessage(
+      messages,
+      systemPrompt,
+      2000 // maxTokens
+    )
+
+    // Log para debugging
+    if (aiResponse.mock) {
+      console.log('🎭 Using mock response (no API key)')
+    } else if (aiResponse.error) {
+      console.log('❌ AI API error, returned fallback')
+    } else {
+      console.log('✅ Real AI response generated')
+      console.log(`📊 Tokens used:`, aiResponse.usage)
+    }
+
+    return NextResponse.json({
+      message: aiResponse.content,
+      usage: aiResponse.usage || null,
+      mock: aiResponse.mock || false,
+      error: aiResponse.error || false,
+    })
+  } catch (error) {
+    console.error('💥 API Error:', error)
+
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        message: 'Disculpá, hubo un error técnico. Por favor intentá nuevamente.',
+      },
+      { status: 500 }
+    )
+  }
+}

@@ -41,27 +41,53 @@ export default function ChatInterface({ agent }) {
     setIsLoading(true)
 
     try {
-      // Simular respuesta del AI (por ahora)
-      setTimeout(() => {
-        const aiResponse = {
-          role: 'assistant',
-          content: `Gracias por tu consulta. Como ${
-            agent?.name || 'tu agente especializado'
-          }, puedo ayudarte con:\n\n• Estrategias específicas\n• Análisis detallado\n• Recomendaciones prácticas\n\n¿Podrías darme más detalles sobre tu situación específica?`,
-        }
+      console.log('📤 Sending message to API...')
 
-        setMessages([...updatedMessages, aiResponse])
-        setIsLoading(false)
-      }, 1500)
-    } catch (error) {
-      console.error('Error:', error)
-      setMessages([
-        ...updatedMessages,
-        {
-          role: 'assistant',
-          content: 'Disculpá, hubo un error técnico. ¿Podés intentar de nuevo?',
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      ])
+        body: JSON.stringify({
+          messages: updatedMessages,
+          agentId: agent?.id || 'marketing-digital',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.error) {
+        throw new Error(data.message || 'Error en la respuesta del servidor')
+      }
+
+      console.log('📥 API response received')
+
+      // Mostrar indicador si es respuesta mock o real
+      let messageContent = data.message
+      if (data.mock) {
+        messageContent = `🎭 **[Modo Demo - Sin API Key]**\n\n${messageContent}`
+      }
+
+      const aiResponse = {
+        role: 'assistant',
+        content: messageContent,
+      }
+
+      setMessages([...updatedMessages, aiResponse])
+    } catch (error) {
+      console.error('❌ Error:', error)
+
+      const errorMessage = {
+        role: 'assistant',
+        content: `❌ **Error técnico**\n\n${error.message}\n\n¿Podés intentar nuevamente en unos momentos?`,
+      }
+
+      setMessages([...updatedMessages, errorMessage])
+    } finally {
       setIsLoading(false)
     }
   }
