@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Playwright configuration for the project
 // playwright.config.js
 const { defineConfig, devices } = require('@playwright/test')
