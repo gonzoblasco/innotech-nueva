@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { UserButton } from '@clerk/nextjs'
 import ChatInterface from '../../components/ChatInterface'
 
 // Mock agents data
@@ -99,17 +100,30 @@ export default function ChatPage() {
 
   return (
     <main className="h-screen flex flex-col bg-gray-50">
-      {/* Breadcrumb */}
+      {/* Breadcrumb con auth */}
       <div className="flex-shrink-0 bg-white border-b px-4 py-3">
-        <div className="max-w-7xl mx-auto flex items-center text-sm text-gray-500">
-          <button
-            onClick={() => router.push('/')}
-            className="hover:text-blue-600 transition-colors"
-          >
-            🏠 Galería de Agentes
-          </button>
-          <span className="mx-2">•</span>
-          <span className="text-gray-700">{agent.name}</span>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center text-sm text-gray-500">
+            <button
+              onClick={() => router.push('/')}
+              className="hover:text-blue-600 transition-colors"
+            >
+              🏠 Galería de Agentes
+            </button>
+            <span className="mx-2">•</span>
+            <span className="text-gray-700">{agent.name}</span>
+          </div>
+
+          {/* User button */}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: 'w-8 h-8',
+                userButtonPopoverCard: 'shadow-xl border',
+              },
+            }}
+          />
         </div>
       </div>
 
